@@ -22,7 +22,8 @@ const backBtn = document.getElementById("back");
 const dotsEl = document.getElementById("dots");
 
 const state = {
-  step: "home",
+  step: location.hash === "#doge" ? "home" : "coins",
+  coin: location.hash === "#doge" ? "doge" : "",
   scanFor: "wallet",
   scanError: "",
   formError: "",
@@ -31,7 +32,7 @@ const state = {
   destText: "",
   amountText: "",
   amountFromCode: false,
-  feeText: "0.01",
+  feeText: "0.01", // fixed, see FIXED_FEE_PER_KB
   feeSource: "default",
   coins: [],
   nextId: 1,
@@ -50,29 +51,10 @@ const state = {
   sending: false,
 };
 
-// Fee is automatic and nothing is stored in the browser.
-// Dogecoin Core 1.14.x: RECOMMENDED_MIN_TX_FEE = 0.01 DOGE/kB is the wallet
-// default; min relay is a tenth of that (0.001). We use the lookup service's
-// low estimate, never below 0.01 and never above the old 1.0 default.
-const FEE_FLOOR_PER_KB = 1000000n;   // 0.01 DOGE
-const FEE_CAP_PER_KB = 100000000n;   // 1.0 DOGE
-
-async function fetchFeeRate() {
-  try {
-    const res = await fetch("https://api.blockcypher.com/v1/doge/main");
-    if (!res.ok) return;
-    const data = parseJsonBig(await res.text());
-    const raw = data.low_fee_per_kb;
-    if (raw === undefined || raw === null) return;
-    let perKb = asBig(raw);
-    if (perKb < FEE_FLOOR_PER_KB) perKb = FEE_FLOOR_PER_KB;
-    if (perKb > FEE_CAP_PER_KB) perKb = FEE_CAP_PER_KB;
-    state.feeText = formatDoge(perKb);
-    state.feeSource = "network";
-    if (state.step === "pay") { rememberPay(); render(); }
-  } catch { /* keep the 0.01 DOGE/kB default */ }
-}
-fetchFeeRate();
+// Fixed fee: 1000 koinu per byte (0.01 DOGE per kB), the Dogecoin Core
+// wallet default. The typed string carries the change, so the Game Boy and
+// this page must agree on one plan; there is no fee lookup.
+const FIXED_FEE_PER_KB = "0.01";
 
 const STEP_NAMES = ["Wallet", "Pay", "Check", "Sign & send"];
 const EXPLORER = "https://blockchair.com/dogecoin/transaction/";
@@ -589,7 +571,7 @@ function renderPay() {
       const { plan } = planFor(pay, rate, destKind === "p2sh");
       const left = totalSpendable() - pay - plan.fee;
       quote.replaceChildren(
-        quoteRow("Network fee (auto)", friendlyDoge(plan.fee) + " DOGE"),
+        quoteRow("Network fee (0.01/kB)", friendlyDoge(plan.fee) + " DOGE"),
         quoteRow("Total leaving", friendlyDoge(pay + plan.fee) + " DOGE"),
         quoteRow("Left on Game Boy", friendlyDoge(left < 0n ? 0n : left) + " DOGE"),
       );
@@ -747,7 +729,7 @@ async function submitPay() {
   try {
     state.result = await encodeString({
       inputs: inputs.map((c) => ({ txid: c.txid, vout: c.vout, value: c.value })),
-      pay, fee: plan.fee, change: plan.change,
+      pay, change: plan.change,
       typeByte: dest.typeByte, hash160: dest.hash160,
     });
   } catch (problem) {
@@ -901,6 +883,10 @@ function renderType() {
   screen.append(
     h("h1", {}, ["Type this"]),
     h("p", { class: "lead" }, ["Type every character. Skip the small number. Tap a group when it is typed."]),
+    h("p", { class: "note type-fee", id: "type-fee" }, [
+      "Network fee " + friendlyDoge(state.plan.fee) + " DOGE (0.01 per kB)" +
+      (state.plan.change > 0n ? " · " + friendlyDoge(state.plan.change) + " DOGE change back to your Game Boy" : " · no change"),
+    ]),
     h("div", { class: "type-sheet" }, [
       ...rows,
       reset,
@@ -1495,6 +1481,99 @@ function renderSent() {
   screen.append(...bits);
 }
 
+// ---- Coin selector ----
+// Pixel icons: 12x12 maps, one char per pixel; each letter is a palette key.
+const COINS = [
+  { id: "doge", logo: "logo-doge.png?v=18", name: "Dogecoin", tick: "DOGE", live: true,
+    pal: { a: "#7a5410", b: "#e8b84a", c: "#ffe39a", d: "#3a2606" },
+    px: ["....aaaa....","..abbbbbba..",".abbccccbba.",".abcbbbbbba.","abcbddddbbba","abcbdbbbdbba","abcbdbbbdbba","abcbddddbbba",".abbbbbbbba.",".abbbbbbbba.","..abbbbbba..","....aaaa...."] },
+  { id: "sol", logo: "logo-sol.png?v=18", name: "Solana", tick: "SOL", live: false,
+    pal: { a: "#14f1c6", b: "#5fb8e8", c: "#9945ff" },
+    px: ["............","..aaaaaaaaa.",".aaaaaaaaa..","............","............",".bbbbbbbbb..","..bbbbbbbbb.","............","............","..ccccccccc.",".ccccccccc..","............"] },
+  { id: "pepe", logo: "logo-pep.png?v=18", name: "Pepecoin", tick: "PEP", live: false,
+    pal: { a: "#1f5e2c", b: "#3fbf6a", c: "#f4f5f8", d: "#0b0c12", e: "#b8433a" },
+    px: ["..aaa..aaa..",".abcca.acca.",".abdca.adca.","abbbbbbbbbba","abbbbbbbbbba","abbbbbbbbbba","aeeeeeeeeeea","abeeeeeeeeba","abbbbbbbbbba",".abbbbbbbba.","..aaaaaaaa..","............"] },
+  { id: "bells", name: "Bellscoin", tick: "BEL", live: false,
+    pal: { a: "#6b3a08", b: "#f2a03a", c: "#ffd77a", d: "#ffe9b8" },
+    px: [".....aa.....","....abba....","...abccba...","..abcdcbba..","..abcdcbba..","..abccbbba..",".abccbbbbba.",".abcbbbbbba.","abbbbbbbbbba","aaaaaaaaaaaa","....abba....",".....aa....."] },
+];
+
+function coinIcon(coin) {
+  if (coin.logo) {
+    return h("img", { class: "coin-icon coin-logo", src: coin.logo, alt: "", width: "72", height: "72", decoding: "async", draggable: "false" });
+  }
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 12 12");
+  svg.setAttribute("shape-rendering", "crispEdges");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", "coin-icon");
+  coin.px.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      const col = coin.pal[row[x]];
+      if (!col) continue;
+      const r = document.createElementNS(ns, "rect");
+      r.setAttribute("x", x); r.setAttribute("y", y);
+      r.setAttribute("width", 1); r.setAttribute("height", 1);
+      r.setAttribute("fill", col);
+      svg.append(r);
+    }
+  });
+  return svg;
+}
+
+function setCoin(id) {
+  state.coin = id;
+  if (id) document.documentElement.dataset.coin = id;
+  else delete document.documentElement.dataset.coin;
+  const want = id ? "#" + id : "";
+  if (location.hash !== want) {
+    try { history.replaceState(null, "", location.pathname + location.search + want); } catch (_) {}
+  }
+}
+
+// Dogecoin: start the camera inside the tap (iOS needs that), then theme.
+function pickCoin(coin) {
+  if (!coin.live) return;
+  setCoin(coin.id);
+  startScan("wallet");
+}
+
+function renderCoins() {
+  const grid = h("div", { class: "coin-grid", role: "list" });
+  for (const coin of COINS) {
+    const card = h("button", {
+      type: "button", class: "coin-card" + (coin.live ? "" : " soon"),
+      "data-coin": coin.id, role: "listitem",
+      "aria-label": coin.name + (coin.live ? "" : ", coming soon"),
+    });
+    card.append(coinIcon(coin), h("span", { class: "coin-name" }, [coin.name]), h("span", { class: "coin-tick" }, [coin.tick]));
+    if (coin.live) {
+      card.append(h("span", { class: "coin-go" }, ["Scan ▶"]));
+      card.addEventListener("click", () => pickCoin(coin));
+    } else {
+      card.setAttribute("aria-disabled", "true");
+      card.tabIndex = -1;
+      card.append(h("span", { class: "soon-badge" }, ["Coming soon"]));
+    }
+    grid.append(card);
+  }
+  screen.append(
+    h("div", { class: "brand" }, [
+      h("h1", { class: "brand-title" }, ["GBSIGN"]),
+      h("p", { class: "lead brand-sub" }, ["Cold signing for Game Boy wallets"]),
+    ]),
+    h("p", { class: "pick-label" }, ["Choose your coin"]),
+    grid,
+    h("p", { class: "note coin-note" }, ["Your words and keys never leave the Game Boy."])
+  );
+}
+
+window.addEventListener("hashchange", () => {
+  if (location.hash === "#doge" && state.step === "coins") { setCoin("doge"); go("home"); }
+  else if (!location.hash && state.step !== "coins") { stopCamera(); setCoin(""); go("coins"); }
+});
+
 function startScan(which) {
   const request = beginCamera();
   rememberPay();
@@ -1525,7 +1604,9 @@ function render() {
     state.scanError = "";
     idleCam = true;
     opening = true;
+    setCoin("doge");
   }
+  document.body.classList.toggle("picking", state.step === "coins");
   stopCamera();
   parkCamera();
   document.body.classList.toggle("scanning", state.step === "scan");
@@ -1536,12 +1617,14 @@ function render() {
     dotsEl.append(h("span", { class: i === step ? "on" : (i < step ? "done" : ""), "aria-hidden": "true" }, ["●"]));
   }
   dotsEl.append(h("span", { class: "steptext" }, ["Step " + (step + 1) + " of 4 · " + STEP_NAMES[step]]));
-  const showBack = !(state.step === "scan" && state.scanFor === "wallet");
+  dotsEl.hidden = state.step === "coins";
+  const showBack = state.step !== "coins";
   backBtn.hidden = !showBack;
   backBtn.onclick = () => {
     if (state.step === "scan") {
       if (state.scanFor === "signed") go("type");
-      else go(state.scanFor === "dest" ? "pay" : "home");
+      else if (state.scanFor === "dest") go("pay");
+      else { setCoin(""); go("coins"); }
     } else if (state.step === "typeWallet") go("home");
     else if (state.step === "found") go("home");
     else if (state.step === "pay") go(state.wallet ? "found" : "home");
@@ -1551,7 +1634,8 @@ function render() {
     else if (state.step === "sent") finishPay();
   };
   screen.replaceChildren();
-  if (state.step === "home") renderHome();
+  if (state.step === "coins") renderCoins();
+  else if (state.step === "home") renderHome();
   else if (state.step === "typeWallet") renderTypeWallet();
   else if (state.step === "found") renderFound();
   else if (state.step === "pay") renderPay();
@@ -1575,7 +1659,7 @@ window.addEventListener("resize", () => {
   const next = wide();
   if (next !== wideNow) {
     wideNow = next;
-    if (state.step === "home") render();
+    if (state.step === "coins") render();
   }
   if (state.step === "scan") placeCamera();
 });

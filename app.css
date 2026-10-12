@@ -534,3 +534,58 @@ button.primary, button.secondary, label.pick, a.button { width: calc(100% - 6px)
 button.primary, button.secondary, button.text:not(.reset), label.pick, a.button {
   box-sizing: border-box; width: calc(100% - 6px) !important; margin-left: 3px !important; margin-right: 3px !important;
 }
+
+/* ---- Coin selector (v17) ---- */
+html[data-coin="doge"] { --coin: #e8b84a; --coin2: #ffd77a; }
+body.picking .top::after, body.picking .top::before { display: none; }
+body.picking .top { min-height: 0; }
+.brand { text-align: center; margin-top: .6rem; }
+.brand-title { margin: 0; font: 2rem/1.2 var(--pixel); letter-spacing: .08em; color: #ffe39a;
+  text-shadow: 3px 3px 0 #b8861c, 6px 6px 0 rgba(0,0,0,.7); }
+.brand-sub { margin: .8rem 0 0; font: .62rem/1.7 var(--pixel); }
+.pick-label { margin: .6rem 0 0; text-align: center; font: .6rem/1.4 var(--pixel); color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+.coin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.coin-card {
+  --px: 3px; --c1: #e8b84a; --c2: #ffd77a; --fill: #1d1a14; --hi: #3a3220; --lo: #0f0d08; --edge: #070810;
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: .55rem;
+  min-height: 11rem; padding: 1.1rem .5rem 1rem; margin: var(--px) var(--px) calc(var(--px) * 2);
+  border: 0; border-radius: 0; color: #f4f5f8; cursor: pointer; font-family: var(--pixel);
+  background: #17151a;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c1) 22%, #12131c), #12131c 75%);
+  box-shadow: inset 0 var(--px) 0 0 var(--hi), inset 0 calc(var(--px) * -1) 0 0 var(--lo),
+    0 calc(var(--px) * -1) 0 0 var(--c1), 0 var(--px) 0 0 var(--c1), calc(var(--px) * -1) 0 0 0 var(--c1), var(--px) 0 0 0 var(--c1),
+    0 calc(var(--px) * 3) 0 0 #000, var(--px) calc(var(--px) * 2) 0 0 #000;
+  -webkit-tap-highlight-color: transparent;
+}
+.coin-card[data-coin="doge"] { --c1: #e8b84a; --c2: #ffe39a; --hi: #5c4a1c; }
+.coin-card[data-coin="sol"] { --c1: #9945ff; --c2: #14f1c6; --hi: #3b2a5e; }
+.coin-card[data-coin="pepe"] { --c1: #3fbf6a; --c2: #8ff0a8; --hi: #1f4a2c; }
+.coin-card[data-coin="bells"] { --c1: #f2a03a; --c2: #ffd77a; --hi: #5a3a14; }
+.coin-card[data-coin="sol"] { background: linear-gradient(180deg, rgba(153,69,255,.22), rgba(20,241,198,.08) 60%, #12131c); }
+.coin-icon { width: 60px; height: 60px; image-rendering: pixelated; display: block; }
+.coin-name { font-size: .7rem; line-height: 1.3; color: var(--c2); text-align: center; }
+.coin-tick { font-size: .5rem; color: var(--muted); letter-spacing: .1em; }
+.coin-go { margin-top: auto; font-size: .55rem; padding: .45rem .6rem; background: var(--c1); color: #1b1404;
+  box-shadow: 0 3px 0 0 #000; text-transform: uppercase; }
+.coin-card:not(.soon):active { transform: translateY(var(--px)); }
+.coin-card:focus-visible { outline: 3px dashed var(--c2); outline-offset: 6px; }
+.coin-card.soon { cursor: not-allowed; }
+.coin-card.soon .coin-icon, .coin-card.soon .coin-name, .coin-card.soon .coin-tick { opacity: .5; }
+.coin-card.soon { background-color: #101118; }
+.coin-card.soon::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-conic-gradient(rgba(0,0,0,.35) 0 25%, transparent 0 50%) 0 0 / 4px 4px; }
+.soon-badge { position: relative; z-index: 1; margin-top: auto; font-size: .45rem; line-height: 1.3; padding: .4rem .5rem;
+  background: #0b0c12; color: var(--c2); text-transform: uppercase; text-align: center;
+  box-shadow: 0 -2px 0 0 var(--c1), 0 2px 0 0 var(--c1), -2px 0 0 0 var(--c1), 2px 0 0 0 var(--c1); }
+.coin-note { text-align: center; font-size: .85rem; }
+@media (min-width: 800px) {
+  body.picking #app { max-width: 60rem; }
+  .coin-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .coin-card { min-height: 13rem; }
+  .coin-icon { width: 72px; height: 72px; }
+  .brand-title { font-size: 2.6rem; }
+}
+@media (prefers-reduced-motion: reduce) { .coin-card:active { transform: none !important; } }
+/* Official logos (v18): smooth scaling, keep aspect. */
+.coin-icon.coin-logo { image-rendering: auto; object-fit: contain; }
+.coin-card.soon .coin-logo { opacity: .6; filter: saturate(.75); }
